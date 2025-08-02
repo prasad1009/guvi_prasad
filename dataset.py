@@ -1,6 +1,8 @@
+import streamlit as st
 import mysql.connector
 import random
 from faker import Faker
+import pandas as pd
 
 
 class StudentDataGenerator:
@@ -120,6 +122,37 @@ class StudentDatabaseManager:
             placement
         )
         self.conn.commit()
+        print("✔️ Data inserted successfully into MySQL database 'students_db'")
+
+    def join_all_tables(self):
+        query = """
+            SELECT 
+            s.student_id,
+            s.name,
+            s.age,
+            s.gender,
+            s.city,
+            p.python,
+            p.java,
+            p.cplusplus,
+            p.web_dev,
+            ss.communication,
+            ss.teamwork,
+            ss.leadership,
+            pl.company,
+            pl.package,
+            pl.placement_year
+        FROM Students s
+        JOIN Programming p ON s.student_id = p.student_id
+        JOIN SoftSkills ss ON s.student_id = ss.student_id
+        JOIN Placement pl ON s.student_id = pl.student_id
+        """
+        self.cursor.execute(query)
+        results = self.cursor.fetchall()
+        print("All tables Joined Successfully")
+        columns = [i[0] for i in self.cursor.description]
+        return pd.DataFrame(results, columns=columns)
+        
 
     def delete_all_data(self):
         self.cursor.execute("DELETE FROM Placement")
@@ -133,6 +166,20 @@ class StudentDatabaseManager:
         self.cursor.close()
         self.conn.close()
 
+    def streamlit_parsing(self, df):
+        st.set_page_config(page_title="Student Data", layout="wide")
+        st.title("📊 Joined Student Data from MySQL")
+        st.dataframe(df, use_container_width=True)
+        student_ids = df["student_id"].tolist()
+        selected_id = st.sidebar.selectbox("Select Student ID", student_ids)
+
+        # Filter data
+        filtered_df = df[df["student_id"] == selected_id]
+
+        # Display result
+        st.markdown(f"### 📋 Details for Student ID: `{selected_id}`")
+        st.dataframe(filtered_df.reset_index(drop=True), use_container_width=True)
+
 
 # === Main Execution ===
 if __name__ == "__main__":
@@ -143,6 +190,6 @@ if __name__ == "__main__":
     db.create_tables()
     db.delete_all_data()
     db.insert_data(students, programming, soft_skills, placement)
+    df = db.join_all_tables()
     db.close()
-
-    print("✔️ Data inserted successfully into MySQL database 'students_db'")
+    db.streamlit_parsing(df)
